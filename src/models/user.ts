@@ -12,6 +12,10 @@ const userSchema = new Schema<IUser>(
 			required: true,
 			unique: true,
 		},
+		password: {
+			type: String,
+			required: true,
+		},
 		avatar: String,
 		dob: Date,
 		location: String,

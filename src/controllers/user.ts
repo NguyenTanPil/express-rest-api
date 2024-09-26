@@ -3,8 +3,10 @@ import { validationResult } from 'express-validator';
 import { StatusCodes } from 'http-status-codes';
 import mongoose from 'mongoose';
 import UserModel from '../models/user';
-import { IUser } from '../types';
+import { ILoginUser, IUser } from '../types';
 import { getErrorResponse } from '../utils';
+import { generateToken } from '../middleware/token';
+import bcrypt from 'bcrypt';
 
 export const createUser = async (req: Request, res: Response) => {
 	try {
@@ -23,9 +25,10 @@ export const createUser = async (req: Request, res: Response) => {
 					},
 				});
 			}
-
+			const hashedPassword = await bcrypt.hash(payload.password, 10);
 			const user = new UserModel<IUser>({
 				...payload,
+				password: hashedPassword,
 			});
 			const newUser = await user.save();
 			return res.status(StatusCodes.OK).json({
@@ -127,6 +130,46 @@ export const deleteUser = async (req: Request, res: Response) => {
 				message: 'User not found',
 			},
 		});
+	} catch (error) {
+		return getErrorResponse(res, error);
+	}
+};
+
+export const login = async (req: Request, res: Response) => {
+	const loginUser: ILoginUser = {
+		email: req.body.email,
+		password: req.body.password,
+	};
+
+	try {
+		const existingUser = await UserModel.findOne({
+			email: loginUser.email,
+		});
+
+		if (existingUser) {
+			const isCorrectPassword = await bcrypt.compare(loginUser.password, existingUser.password);
+
+			if (isCorrectPassword) {
+				const token = generateToken(loginUser);
+				return res.status(StatusCodes.OK).json({
+					accessToken: token,
+				});
+			} else {
+				return res.status(StatusCodes.UNAUTHORIZED).json({
+					success: false,
+					error: {
+						message: 'Password is incorrect',
+					},
+				});
+			}
+		} else {
+			return res.status(StatusCodes.NOT_FOUND).json({
+				success: false,
+				error: {
+					message: 'User not found',
+				},
+			});
+		}
 	} catch (error) {
 		return getErrorResponse(res, error);
 	}
